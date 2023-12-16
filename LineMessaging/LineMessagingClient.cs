@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
@@ -64,6 +65,108 @@ namespace LineMessaging
         {
             await SendRequest(HttpMethod.Delete, path);
         }
+
+
+        /// <summary>
+        /// Download message content, write to local storage. Determine file extension based on content-type.<para />
+        /// Create by phidiassj.
+        /// </summary>
+        /// <param name="url">Line get content API url</param>
+        /// <param name="path">Local path to write</param>
+        /// <param name="filename">Filename without extension</param>
+        /// <returns>Return full filename with path if success. Otherwise null.</returns>
+        public async Task<string> GetContentAndSave(string url, string path, string filename)
+        {
+            try
+            {
+                using (var httpClient = new HttpClient())
+                {
+                    httpClient.BaseAddress = new Uri("https://api-data.line.me/");
+                    httpClient.DefaultRequestHeaders.Authorization = accessTokenHeaderValue;
+                    var response = await httpClient.GetAsync(url);
+                    if (response == null) return null;
+                    if (!response.IsSuccessStatusCode) return null;
+                    if (response.Content.Headers.ContentType == null ||
+                        response.Content.Headers.ContentType.MediaType == null) return null;
+
+                    var contentStream = await response.Content.ReadAsStreamAsync();
+                    var contentType = response.Content.Headers.ContentType.MediaType;
+                    var extension = "";
+
+                    switch (contentType.ToLower())
+                    {
+                        case "audio/wav":
+                        case "audio/wave":
+                        case "audio/x-wav":
+                        case "audio/x-pn-wav":
+                            extension = ".wav";
+                            break;
+                        case "audio/ac3":
+                            extension = ".ac3";
+                            break;
+                        case "audio/aac":
+                            extension = ".aac";
+                            break;
+                        case "audio/x-m4a":
+                        case "audio/mp3":
+                        case "audio/mpeg":
+                            extension = ".mp3";
+                            break;
+                        case "audio/ogg":
+                            extension = ".ogg";
+                            break;
+                        case "audio/mpa":
+                            extension = ".mpa";
+                            break;
+                        case "audio/mp4":
+                        case "video/mp4":
+                            extension = ".mp4";
+                            break;
+                        case "image/gif":
+                            extension = ".gif";
+                            break;
+                        case "image/jpeg":
+                            extension = ".jpg";
+                            break;
+                        case "image/png":
+                            extension = ".png";
+                            break;
+                        case "application/pdf":
+                            extension = ".pdf";
+                            break;
+                        // Add more cases as needed
+                        default:
+                            extension = "";
+                            break;
+                    }
+
+                    // Undefine file types.
+                    if (string.IsNullOrWhiteSpace(extension)) return null;
+
+                    string completeName = filename + extension;
+                    var filePath = Path.Combine(path, completeName);
+
+                    try
+                    {
+                        using (var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 3145728, true))
+                        {
+                            await contentStream.CopyToAsync(stream);
+                        }
+                    } catch 
+                    {
+                        return null;
+                    }
+
+                    return filePath;
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+
 
         private async Task<byte[]> GetAsByteArray(string path)
         {
